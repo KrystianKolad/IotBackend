@@ -22,15 +22,6 @@ namespace IotBackend.Api.Tests.Infrastructure.Handlers
     public class DevicesHandlerTests
     {
         [Test]
-        public void HandleGetDeviceSensorDailyData_ThrowsSensorNotSupportedException_WhenSensorTypeIsInvalid()
-        {
-            //arrange
-            //act
-            //assert
-            Assert.ThrowsAsync<SensorNotSupportedException>(async() => await _sut.HandleGetDeviceSensorDailyData(_deviceName, "notExistingParser", _date));
-        }
-
-        [Test]
         public void HandleGetDeviceSensorDailyData_DataNotFoundException_WhenFileIsNotFound()
         {
             //arrange
@@ -45,15 +36,10 @@ namespace IotBackend.Api.Tests.Infrastructure.Handlers
         public void HandleGetDeviceDailyData_ThrowsDataNotFoundException_WhenFileIsNotFound()
         {
             //arrange
-            _humidityBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
-            _humidityHistoricalBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
-            _rainfallBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
-            _rainfallHistoricalBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
-            _temperatureBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
-            _temperatureHistoricalBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
+            _deviceDataBuilder.BuildDeviceData(Arg.Any<List<ISensorData>>(),Arg.Any<List<ISensorData>>(),Arg.Any<List<ISensorData>>()).Returns(new List<DeviceData>());
             //act
             //assert
-            Assert.ThrowsAsync<DataNotFoundException>(async() => await _sut.HandleGetDeviceSensorDailyData(_deviceName, _humiditySensorType, _date));
+            Assert.ThrowsAsync<DataNotFoundException>(async() => await _sut.HandleGetDeviceDailyData(_deviceName, _date));
         }
 
         [Test]
@@ -133,15 +119,7 @@ namespace IotBackend.Api.Tests.Infrastructure.Handlers
             var result = await _sut.HandleGetDeviceDailyData(_deviceName, _date);
 
             //assert
-            Assert.That(result.Count, Is.EqualTo(2));
-            Assert.That(result[0].TimeStamp, Is.EqualTo(new DateTime(2019,1,10,1,1,1)));
-            Assert.That(result[0].Humidity, Is.EqualTo(1));
-            Assert.That(result[0].Rainfall, Is.EqualTo(11));
-            Assert.That(result[0].Temperature, Is.EqualTo(111));
-            Assert.That(result[1].TimeStamp, Is.EqualTo(new DateTime(2019,1,10,1,1,2)));
-            Assert.That(result[1].Humidity, Is.EqualTo(2));
-            Assert.That(result[1].Rainfall, Is.EqualTo(22));
-            Assert.That(result[1].Temperature, Is.EqualTo(222));
+            Assert.That(result, Is.EqualTo(_deviceData));
         }
 
         [Test]
@@ -155,15 +133,7 @@ namespace IotBackend.Api.Tests.Infrastructure.Handlers
             var result = await _sut.HandleGetDeviceDailyData(_deviceName, _date);
 
             //assert
-            Assert.That(result.Count, Is.EqualTo(2));
-            Assert.That(result[0].TimeStamp, Is.EqualTo(new DateTime(2019,1,10,1,1,1)));
-            Assert.That(result[0].Humidity, Is.EqualTo(3));
-            Assert.That(result[0].Rainfall, Is.EqualTo(33));
-            Assert.That(result[0].Temperature, Is.EqualTo(333));
-            Assert.That(result[1].TimeStamp, Is.EqualTo(new DateTime(2019,1,10,1,1,2)));
-            Assert.That(result[1].Humidity, Is.EqualTo(4));
-            Assert.That(result[1].Rainfall, Is.EqualTo(44));
-            Assert.That(result[1].Temperature, Is.EqualTo(444));
+            Assert.That(result, Is.EqualTo(_historicalDeviceData));
         }
 
         [SetUp]
@@ -172,18 +142,20 @@ namespace IotBackend.Api.Tests.Infrastructure.Handlers
             SetUpParsedData();
             SetUpVariables();
             SetUpFilePathBuilder();
+            SetUpDeviceDataBuilder();
             SetUpBlobClientProvider();
             SetUpZipArchiveProvider();
             SetUpParsers();
 
-            _sut = new DevicesHandler(_parsers, _filePathBuilder, _blobClientProvider, _zipArchiveProvider);
+            _sut = new DevicesHandler(_parserProvider, _filePathBuilder, _blobClientProvider, _zipArchiveProvider, _deviceDataBuilder);
         }
 
         private IDevicesHandler _sut;
-        private IEnumerable<IParser> _parsers;
+        private IParserProvider _parserProvider;
         private IFilePathBuilder _filePathBuilder;
         private IBlobClientProvider _blobClientProvider;
         private Func<Stream, ZipArchive> _zipArchiveProvider;
+        private IDeviceDataBuilder _deviceDataBuilder;
         private string _deviceName;
         private DateTime _date;
         private string _humidityFilePath;
@@ -198,9 +170,11 @@ namespace IotBackend.Api.Tests.Infrastructure.Handlers
         private List<ISensorData> _humidityParsedData;
         private List<ISensorData> _rainfallParsedData;
         private List<ISensorData> _temperatureParsedData;
+        private List<DeviceData> _deviceData;
         private List<ISensorData> _humidityHistoricalParsedData;
         private List<ISensorData> _rainfallHistoricalParsedData;
         private List<ISensorData> _temperatureHistoricalParsedData;
+        private List<DeviceData> _historicalDeviceData;
         private BlobClient _humidityBlob;
         private BlobClient _rainfallBlob;
         private BlobClient _temperatureBlob;
@@ -219,11 +193,7 @@ namespace IotBackend.Api.Tests.Infrastructure.Handlers
 
         void AssertCollectionsAreEqual(List<ISensorData> result, List<ISensorData> expected)
         {
-            Assert.That(result.Count, Is.EqualTo(2));
-            Assert.That(result[0].TimeStamp, Is.EqualTo(expected[0].TimeStamp));
-            Assert.That(result[0].Value, Is.EqualTo(expected[0].Value));
-            Assert.That(result[1].TimeStamp, Is.EqualTo(expected[1].TimeStamp));
-            Assert.That(result[1].Value, Is.EqualTo(expected[1].Value));
+            Assert.That(result, Is.EqualTo(expected));
         }
 
         private void SetUpParsers()
@@ -243,45 +213,45 @@ namespace IotBackend.Api.Tests.Infrastructure.Handlers
             temperatureParser.ParseStream(_temperatureStream).Returns(_temperatureParsedData);
             temperatureParser.ParseStream(Arg.Is<Stream>(x=>x.Length.Equals(_temperatureHistoricalEntryStream.Length))).Returns(_temperatureHistoricalParsedData);
 
-            _parsers = new []
-            {
-                humidityParser,
-                rainfallParser,
-                temperatureParser
-            };
+            _parserProvider = Substitute.For<IParserProvider>();
+            _parserProvider.GetParser(_humiditySensorType).Returns(humidityParser);
+            _parserProvider.GetParser(_rainfallSensorType).Returns(rainfallParser);
+            _parserProvider.GetParser(_temperatureSensorType).Returns(temperatureParser);
         }
 
         void SetUpParsedData()
         {
             _humidityParsedData = new List<ISensorData>
             {
-                new Humidity {TimeStamp = new DateTime(2019,1,10,1,1,1), Value = 1},
-                new Humidity {TimeStamp = new DateTime(2019,1,10,1,1,2), Value = 2}
+                Substitute.For<ISensorData>()
             };
             _rainfallParsedData = new List<ISensorData>
             {
-                new Rainfall {TimeStamp = new DateTime(2019,1,10,1,1,1), Value = 11},
-                new Rainfall {TimeStamp = new DateTime(2019,1,10,1,1,2), Value = 22}
+                Substitute.For<ISensorData>()
             };
             _temperatureParsedData = new List<ISensorData>
             {
-                new Temperature {TimeStamp = new DateTime(2019,1,10,1,1,1), Value = 111},
-                new Temperature {TimeStamp = new DateTime(2019,1,10,1,1,2), Value = 222}
+                Substitute.For<ISensorData>()
             };
             _humidityHistoricalParsedData = new List<ISensorData>
             {
-                new Humidity {TimeStamp = new DateTime(2019,1,10,1,1,1), Value = 3},
-                new Humidity {TimeStamp = new DateTime(2019,1,10,1,1,2), Value = 4}
+                Substitute.For<ISensorData>()
             };
             _rainfallHistoricalParsedData = new List<ISensorData>
             {
-                new Rainfall {TimeStamp = new DateTime(2019,1,10,1,1,1), Value = 33},
-                new Rainfall {TimeStamp = new DateTime(2019,1,10,1,1,2), Value = 44}
+                Substitute.For<ISensorData>()
             };
             _temperatureHistoricalParsedData = new List<ISensorData>
             {
-                new Temperature {TimeStamp = new DateTime(2019,1,10,1,1,1), Value = 333},
-                new Temperature {TimeStamp = new DateTime(2019,1,10,1,1,2), Value = 444}
+                Substitute.For<ISensorData>()
+            };
+            _deviceData = new List<DeviceData>
+            {
+                new DeviceData()
+            };
+            _historicalDeviceData = new List<DeviceData>
+            {
+                new DeviceData()
             };
         }
 
@@ -344,6 +314,13 @@ namespace IotBackend.Api.Tests.Infrastructure.Handlers
             _filePathBuilder.BuildHistoricalFilePath(_deviceName, _humiditySensorType).Returns(_humidityHistoricalFilePath);
             _filePathBuilder.BuildHistoricalFilePath(_deviceName, _rainfallSensorType).Returns(_rainfallHistoricalFilePath);
             _filePathBuilder.BuildHistoricalFilePath(_deviceName, _temperatureSensorType).Returns(_temperatureHistoricalFilePath);
+        }
+
+        private void SetUpDeviceDataBuilder()
+        {
+            _deviceDataBuilder = Substitute.For<IDeviceDataBuilder>();
+            _deviceDataBuilder.BuildDeviceData(_humidityParsedData, _rainfallParsedData, _temperatureParsedData).Returns(_deviceData);
+            _deviceDataBuilder.BuildDeviceData(_humidityHistoricalParsedData, _rainfallHistoricalParsedData, _temperatureHistoricalParsedData).Returns(_historicalDeviceData);
         }
 
         private void SetUpBlobClientProvider()

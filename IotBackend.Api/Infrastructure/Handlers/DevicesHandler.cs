@@ -21,37 +21,42 @@ namespace IotBackend.Api.Infrastructure.Handlers
     }
     public class DevicesHandler : IDevicesHandler
     {
-        private Dictionary<string, IParser> _parsers;
+        private IParserProvider _parserProvider;
         private IFilePathBuilder _filePathBuilder;
         private readonly IBlobClientProvider _blobClientProvider;
         private readonly Func<Stream, ZipArchive> _zipArchiveProvider;
-        public DevicesHandler(IEnumerable<IParser> parsers, IFilePathBuilder filePathBuilder, IBlobClientProvider blobClientProvider, Func<Stream, ZipArchive> zipArchiveProvider)
+        private readonly IDeviceDataBuilder _deviceDataBuilder;
+        public DevicesHandler(
+            IParserProvider parserProvider,
+            IFilePathBuilder filePathBuilder,
+            IBlobClientProvider blobClientProvider,
+            Func<Stream, ZipArchive> zipArchiveProvider,
+            IDeviceDataBuilder deviceDataBuilder)
         {
-            _parsers = parsers.ToDictionary(x => x.Type, y => y);
+            _parserProvider = parserProvider;
             _filePathBuilder = filePathBuilder;
             _blobClientProvider = blobClientProvider;
             _zipArchiveProvider = zipArchiveProvider;
+            _deviceDataBuilder = deviceDataBuilder;
         }
 
         public async Task<List<ISensorData>> HandleGetDeviceSensorDailyData(string deviceName, string sensorType, DateTime date)
         {
-            if (_parsers.TryGetValue(sensorType, out var parser))
+            var result =  await Read(deviceName, date, _parserProvider.GetParser(sensorType));
+
+            if (!result.Any())
             {
-                var result = await Read(deviceName, date, parser);
-                if (!result.Any())
-                {
-                    throw new DataNotFoundException(date.ToFileName());
-                }
-                return result;
+                throw new DataNotFoundException(date.ToFileName());
             }
-            throw new SensorNotSupportedException(sensorType);
+
+            return result;
         }
 
         public async Task<List<DeviceData>> HandleGetDeviceDailyData(string deviceName, DateTime date)
         {
-            var humidityTask = Read(deviceName, date, _parsers[SensorTypesConsts.Humidity]);
-            var rainfallTask = Read(deviceName, date, _parsers[SensorTypesConsts.Rainfall]);
-            var temperatureTask = Read(deviceName, date, _parsers[SensorTypesConsts.Temperature]);
+            var humidityTask = Read(deviceName, date, _parserProvider.GetParser(SensorTypesConsts.Humidity));
+            var rainfallTask = Read(deviceName, date, _parserProvider.GetParser(SensorTypesConsts.Rainfall));
+            var temperatureTask = Read(deviceName, date, _parserProvider.GetParser(SensorTypesConsts.Temperature));
             var tasks = new Task[]
             {
                 humidityTask,
@@ -65,17 +70,7 @@ namespace IotBackend.Api.Infrastructure.Handlers
             var rainfalls = rainfallTask.Result;
             var temperatures = temperatureTask.Result;
 
-            var result = (
-                from humidity in humidities 
-                join rainfall in rainfalls on humidity.TimeStamp equals rainfall.TimeStamp 
-                join temperature in temperatures on humidity.TimeStamp equals temperature.TimeStamp 
-                select new DeviceData
-                {
-                    TimeStamp = humidity.TimeStamp,
-                        Humidity = humidity.Value,
-                        Rainfall = rainfall.Value,
-                        Temperature = temperature.Value
-                }).ToList();
+            var result = _deviceDataBuilder.BuildDeviceData(humidities, rainfalls, temperatures);
 
             if (!result.Any())
             {
@@ -88,13 +83,12 @@ namespace IotBackend.Api.Infrastructure.Handlers
         {
             var filePath = _filePathBuilder.BuildFilePath(deviceName, parser.Type, date);
             var blob = _blobClientProvider.GetBlobClient(filePath);
-            var result = new List<ISensorData>();
 
             if (await blob.ExistsAsync())
             {
                 using(var stream = await blob.OpenReadAsync())
                 {
-                    result.AddRange(parser.ParseStream(stream));
+                    return parser.ParseStream(stream);
                 }
             }
             else
@@ -105,11 +99,11 @@ namespace IotBackend.Api.Infrastructure.Handlers
                 {
                     using(var stream = await blob.OpenReadAsync())
                     {
-                        result.AddRange(GetArchiveFile(stream, date, parser));
+                        return GetArchiveFile(stream, date, parser);
                     }
                 }
             }
-            return result;
+            return new List<ISensorData>();
         }
 
         private List<ISensorData> GetArchiveFile(Stream stream, DateTime date, IParser parser)

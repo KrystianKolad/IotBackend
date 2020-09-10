@@ -24,6 +24,7 @@ namespace IotBackend.Api.Infrastructure.Extensions
         public static IServiceCollection AddProviders(this IServiceCollection services)
         {
             services.AddSingleton<IBlobClientProvider, BlobClientProvider>();
+            services.AddSingleton<IParserProvider, ParserProvider>();
             services.AddSingleton<Func<Stream, StreamReader>>(stream => new StreamReader(stream));
             services.AddSingleton<Func<Stream, ZipArchive>>(stream => new ZipArchive(stream));
             
@@ -40,6 +41,7 @@ namespace IotBackend.Api.Infrastructure.Extensions
         public static IServiceCollection AddBuilders(this IServiceCollection services)
         {
             services.AddSingleton<IFilePathBuilder, FilePathBuilder>();
+            services.AddSingleton<IDeviceDataBuilder, DeviceDataBuilder>();
             
             return services;
         }
