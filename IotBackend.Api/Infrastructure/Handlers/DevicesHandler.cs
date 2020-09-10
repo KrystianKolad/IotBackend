@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using IotBackend.Api.Infrastructure.Builders;
 using IotBackend.Api.Infrastructure.Consts;
+using IotBackend.Api.Infrastructure.Exceptions;
 using IotBackend.Api.Infrastructure.Extensions;
 using IotBackend.Api.Infrastructure.Models;
 using IotBackend.Api.Infrastructure.Parsers;
@@ -24,7 +25,7 @@ namespace IotBackend.Api.Infrastructure.Handlers
         private IFilePathBuilder _filePathBuilder;
         private readonly IBlobClientProvider _blobClientProvider;
         private readonly Func<Stream, ZipArchive> _zipArchiveProvider;
-        public DevicesHandler(IEnumerable<IParser> parsers, IFilePathBuilder filePathBuilder, IBlobClientProvider blobClientProvider,Func<Stream, ZipArchive> zipArchiveProvider)
+        public DevicesHandler(IEnumerable<IParser> parsers, IFilePathBuilder filePathBuilder, IBlobClientProvider blobClientProvider, Func<Stream, ZipArchive> zipArchiveProvider)
         {
             _parsers = parsers.ToDictionary(x => x.Type, y => y);
             _filePathBuilder = filePathBuilder;
@@ -36,9 +37,14 @@ namespace IotBackend.Api.Infrastructure.Handlers
         {
             if (_parsers.TryGetValue(sensorType, out var parser))
             {
-                return await Read(deviceName, date, parser);
+                var result = await Read(deviceName, date, parser);
+                if (!result.Any())
+                {
+                    throw new DataNotFoundException(date.ToFileName());
+                }
+                return result;
             }
-            throw new Exception($"Sensor {sensorType} is not supported");
+            throw new SensorNotSupportedException(sensorType);
         }
 
         public async Task<List<DeviceData>> HandleGetDeviceDailyData(string deviceName, DateTime date)
@@ -66,11 +72,15 @@ namespace IotBackend.Api.Infrastructure.Handlers
                 select new DeviceData
                 {
                     TimeStamp = humidity.TimeStamp,
-                    Humidity = humidity.Value,
-                    Rainfall = rainfall.Value,
-                    Temperature = temperature.Value
+                        Humidity = humidity.Value,
+                        Rainfall = rainfall.Value,
+                        Temperature = temperature.Value
                 }).ToList();
 
+            if (!result.Any())
+            {
+                throw new DataNotFoundException(date.ToFileName());
+            }
             return result;
         }
 
@@ -109,7 +119,7 @@ namespace IotBackend.Api.Infrastructure.Handlers
                 var entry = archive.Entries.FirstOrDefault(x => x.FullName.Equals(date.ToFileName()));
                 if (entry != null)
                 {
-                    using (var entryStream = entry.Open())
+                    using(var entryStream = entry.Open())
                     {
                         return parser.ParseStream(entryStream);
                     }

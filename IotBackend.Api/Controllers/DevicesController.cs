@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using IotBackend.Api.Infrastructure.Exceptions;
 using IotBackend.Api.Infrastructure.Handlers;
 using IotBackend.Api.Infrastructure.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -28,7 +29,15 @@ namespace IotBackend.Api.Controllers
                 var result = await _handler.HandleGetDeviceSensorDailyData(deviceName,sensorType, date);
                 return Ok(result);
             }
-            catch (System.Exception)
+            catch (BaseException baseException)
+            {
+                return new ContentResult()
+                {
+                    StatusCode = baseException.StatusCode,
+                    Content = baseException.Message,
+                };
+            }
+            catch (Exception)
             {
                 throw;
             }
@@ -43,7 +52,15 @@ namespace IotBackend.Api.Controllers
                 var result = await _handler.HandleGetDeviceDailyData(deviceName, date);
                 return Ok(result);
             }
-            catch (System.Exception)
+            catch (BaseException baseException)
+            {
+                return new ContentResult()
+                {
+                    StatusCode = baseException.StatusCode,
+                    Content = baseException.Message,
+                };
+            }
+            catch (Exception)
             {
                 throw;
             }

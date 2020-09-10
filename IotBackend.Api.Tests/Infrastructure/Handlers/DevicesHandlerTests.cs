@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Azure;
 using Azure.Storage.Blobs;
 using IotBackend.Api.Infrastructure.Builders;
+using IotBackend.Api.Infrastructure.Exceptions;
 using IotBackend.Api.Infrastructure.Handlers;
 using IotBackend.Api.Infrastructure.Models;
 using IotBackend.Api.Infrastructure.Parsers;
@@ -21,12 +22,38 @@ namespace IotBackend.Api.Tests.Infrastructure.Handlers
     public class DevicesHandlerTests
     {
         [Test]
-        public void HandleGetDeviceSensorDailyData_ThrowsException_WhenPSensorTypeIsInvalid()
+        public void HandleGetDeviceSensorDailyData_ThrowsSensorNotSupportedException_WhenSensorTypeIsInvalid()
         {
             //arrange
             //act
             //assert
-            Assert.ThrowsAsync<Exception>(async() => await _sut.HandleGetDeviceSensorDailyData(_deviceName, "notExistingParser", _date));
+            Assert.ThrowsAsync<SensorNotSupportedException>(async() => await _sut.HandleGetDeviceSensorDailyData(_deviceName, "notExistingParser", _date));
+        }
+
+        [Test]
+        public void HandleGetDeviceSensorDailyData_DataNotFoundException_WhenFileIsNotFound()
+        {
+            //arrange
+            _humidityBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
+            _humidityHistoricalBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
+            //act
+            //assert
+            Assert.ThrowsAsync<DataNotFoundException>(async() => await _sut.HandleGetDeviceSensorDailyData(_deviceName, _humiditySensorType, _date));
+        }
+
+        [Test]
+        public void HandleGetDeviceDailyData_ThrowsDataNotFoundException_WhenFileIsNotFound()
+        {
+            //arrange
+            _humidityBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
+            _humidityHistoricalBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
+            _rainfallBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
+            _rainfallHistoricalBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
+            _temperatureBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
+            _temperatureHistoricalBlob.ExistsAsync().Returns(Task.FromResult((Response.FromValue(false, default))));
+            //act
+            //assert
+            Assert.ThrowsAsync<DataNotFoundException>(async() => await _sut.HandleGetDeviceSensorDailyData(_deviceName, _humiditySensorType, _date));
         }
 
         [Test]
