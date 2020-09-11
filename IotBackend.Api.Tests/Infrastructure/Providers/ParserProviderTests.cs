@@ -10,7 +10,7 @@ namespace IotBackend.Api.Tests.Infrastructure.Providers
     public class ParserProviderTests
     {
         [Test]
-        public void GetParser_ReturnsParser_ForGicenSensorType()
+        public void GetParser_ReturnsParser_ForGivenSensorType()
         {
             //arrange
             //act

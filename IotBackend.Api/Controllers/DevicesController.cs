@@ -22,7 +22,7 @@ namespace IotBackend.Api.Controllers
         }
 
         [HttpGet]
-        [Route("data/{devicename}/{sensorType}/{date}")]
+        [Route("data/{deviceName}/{sensorType}/{date}")]
         public async Task<ActionResult<List<ISensorData>>> GetDeviceSensorDailyData(string deviceName, string sensorType, DateTime date)
         {
             try

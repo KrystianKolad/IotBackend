@@ -19,9 +19,9 @@ namespace IotBackend.Api.Infrastructure.Builders
                 select new DeviceData
                 {
                     TimeStamp = humidity.TimeStamp,
-                        Humidity = humidity.Value,
-                        Rainfall = rainfall.Value,
-                        Temperature = temperature.Value
+                    Humidity = humidity.Value,
+                    Rainfall = rainfall.Value,
+                    Temperature = temperature.Value
                 }).ToList();
         }
     }
