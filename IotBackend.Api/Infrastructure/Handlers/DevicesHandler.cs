@@ -46,7 +46,7 @@ namespace IotBackend.Api.Infrastructure.Handlers
 
             if (!result.Any())
             {
-                throw new DataNotFoundException(date.ToFileName());
+                throw new DataNotFoundException();
             }
 
             return result;
@@ -74,7 +74,7 @@ namespace IotBackend.Api.Infrastructure.Handlers
 
             if (!result.Any())
             {
-                throw new DataNotFoundException(date.ToFileName());
+                throw new DataNotFoundException();
             }
             return result;
         }
