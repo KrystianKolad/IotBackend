@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Threading.Tasks;
 using IotBackend.Api.Infrastructure.Exceptions;
 using IotBackend.Api.Infrastructure.Handlers;
@@ -39,7 +40,11 @@ namespace IotBackend.Api.Controllers
             }
             catch (Exception)
             {
-                throw;
+                return new ContentResult()
+                {
+                    StatusCode = (int)HttpStatusCode.InternalServerError,
+                    Content = "Uexcpected server error occured",
+                };
             }
         }
 
@@ -61,8 +66,11 @@ namespace IotBackend.Api.Controllers
                 };
             }
             catch (Exception)
-            {
-                throw;
+            {return new ContentResult()
+                {
+                    StatusCode = (int)HttpStatusCode.InternalServerError,
+                    Content = "Uexcpected server error occured",
+                };
             }
         }
     }
