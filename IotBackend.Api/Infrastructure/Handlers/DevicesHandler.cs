@@ -21,8 +21,8 @@ namespace IotBackend.Api.Infrastructure.Handlers
     }
     public class DevicesHandler : IDevicesHandler
     {
-        private IParserProvider _parserProvider;
-        private IFilePathBuilder _filePathBuilder;
+        private readonly IParserProvider _parserProvider;
+        private readonly IFilePathBuilder _filePathBuilder;
         private readonly IBlobClientProvider _blobClientProvider;
         private readonly Func<Stream, ZipArchive> _zipArchiveProvider;
         private readonly IDeviceDataBuilder _deviceDataBuilder;
